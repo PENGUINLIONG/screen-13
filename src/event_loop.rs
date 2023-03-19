@@ -1,7 +1,5 @@
-use std::fs::File;
-
 use ash::vk;
-use chrono::Local;
+use exr::prelude::write_rgba_file;
 
 use crate::driver::buffer::{BufferInfo, Buffer};
 
@@ -162,7 +160,7 @@ impl EventLoop {
             let width = swapchain_image.info.width;
             let mut render_graph = RenderGraph::new();
             let swapchain_image = render_graph.bind_node(swapchain_image);
-            let mut should_snapshot = false;
+            let mut snapshots = Vec::new();
 
             let frame_context = FrameContext {
                 device: &self.device,
@@ -174,37 +172,55 @@ impl EventLoop {
                 width,
                 window: &self.window,
                 will_exit: &mut will_exit,
-                should_snapshot: &mut should_snapshot,
+                snapshots: &mut snapshots,
             };
 
             frame_fn(frame_context);
 
-            let read_back_buffer = {
-                if should_snapshot && self.nsnapshot < 100 {
-                    self.nsnapshot += 1;
+            struct SnapshotBuffer {
+                name: String,
+                width: u32,
+                height: u32,
+                buffer: Arc<Buffer>,
+                fmt: vk::Format,
+            }
 
-                    let read_back_buffer = {
-                        let swapchain_info = self.swapchain.info();
-                        let pixel_size = match swapchain_info.format.format {
-                            vk::Format::R8G8B8A8_UNORM => 4,
-                            vk::Format::B8G8R8A8_UNORM => 4,
-                            _ => unimplemented!(),
+            let read_back_buffers = {
+                snapshots.into_iter()
+                    .filter(|_| {
+                        self.nsnapshot += 1;
+                        if self.nsnapshot > 100 {
+                            warn!("Reached maximum number of snapshots (100); ignoring further requests.");
+                            false
+                        } else {
+                            true
+                        }
+                    })
+                    .map(|cfg| {
+                        let read_back_buffer = {
+                            let pixel_size = match cfg.fmt {
+                                vk::Format::R8G8B8A8_UNORM => 4,
+                                vk::Format::B8G8R8A8_UNORM => 4,
+                                vk::Format::D32_SFLOAT => 4,
+                                _ => unimplemented!(),
+                            };
+                            let size = cfg.width as u64 * cfg.height as u64 * pixel_size;
+                            let info = BufferInfo::new_mappable(size, vk::BufferUsageFlags::TRANSFER_DST);
+                            Arc::new(Buffer::create(&self.device, info).unwrap())
                         };
-                        let size = swapchain_info.width as u64 * swapchain_info.height as u64 * pixel_size;
-                        let info = BufferInfo::new_mappable(size, vk::BufferUsageFlags::TRANSFER_DST);
-                        Arc::new(Buffer::create(&self.device, info)?)
-                    };
-    
-                    let node = render_graph.bind_node(&read_back_buffer);
-                    render_graph.copy_image_to_buffer(swapchain_image, node);
-    
-                    Some(read_back_buffer)
-                } else {
-                    if self.nsnapshot >= 100 {
-                        warn!("Reached maximum number of snapshots (100); ignoring further requests.");
-                    }
-                    None
-                }
+                        
+                        let buffer_node = render_graph.bind_node(&read_back_buffer);
+                        render_graph.copy_image_to_buffer(cfg.node, buffer_node);
+
+                        SnapshotBuffer {
+                            name: cfg.name,
+                            width: cfg.width,
+                            height: cfg.height,
+                            buffer: read_back_buffer,
+                            fmt: cfg.fmt,
+                        }
+                    })
+                    .collect::<Vec<_>>()
             };
 
             let elapsed = Instant::now() - now;
@@ -218,16 +234,51 @@ impl EventLoop {
             let swapchain_image = self.display.resolve_image(render_graph, swapchain_image)?;
             self.swapchain.present_image(swapchain_image, 0);
 
-            if let Some(read_back_buffer) = read_back_buffer {
-                let buf = Buffer::mapped_slice(&read_back_buffer);
+            for read_back_buffer in read_back_buffers {
+                let buf = Buffer::mapped_slice(&read_back_buffer.buffer);
                 // File name at current date time:
-                let file_name = format!("snapshot_{}.png", Local::now().format("%Y-%m-%d_%H-%M-%S"));
-                let mut file = File::create(&file_name).unwrap();
-                let mut encoder = png::Encoder::new(&mut file, width, height);
-                encoder.set_color(png::ColorType::Rgba);
-                encoder.set_depth(png::BitDepth::Eight);
-                let mut writer = encoder.write_header().unwrap();
-                writer.write_image_data(&buf).unwrap();
+                let file_name = format!("{}.exr", read_back_buffer.name);
+
+                let extractor: Box<dyn Sync + Fn(usize, usize) -> (f32, f32, f32, f32)> = match read_back_buffer.fmt {
+                    vk::Format::R8G8B8A8_UNORM => {
+                        Box::new(move |x,y| {
+                            let offset = (y * read_back_buffer.width as usize + x) * 4;
+                            (
+                                buf[offset + 0] as f32 / 255.0, // red
+                                buf[offset + 1] as f32 / 255.0, // green
+                                buf[offset + 2] as f32 / 255.0, // blue
+                                buf[offset + 3] as f32 / 255.0, // alpha
+                            )
+                        })
+                    }
+                    vk::Format::B8G8R8A8_UNORM => {
+                        Box::new(move |x,y| {
+                            let offset = (y * read_back_buffer.width as usize + x) * 4;
+                            (
+                                buf[offset + 2] as f32 / 255.0, // red
+                                buf[offset + 1] as f32 / 255.0, // green
+                                buf[offset + 0] as f32 / 255.0, // blue
+                                buf[offset + 3] as f32 / 255.0, // alpha
+                            )
+                        })
+                    }
+                    vk::Format::D32_SFLOAT => {
+                        Box::new(move |x,y| {
+                            let offset = (y * read_back_buffer.width as usize + x) * 4;
+                            let depth = f32::from_le_bytes([buf[offset + 0], buf[offset + 1], buf[offset + 2], buf[offset + 3]]);
+                            (
+                                depth, // red
+                                depth, // green
+                                depth, // blue
+                                1.0, // alpha
+                            )
+                        })
+                    }
+                    _ => unimplemented!(),
+                };
+                write_rgba_file(file_name, read_back_buffer.width as usize, read_back_buffer.height as usize,
+                    extractor
+                ).unwrap();
             }
         }
 
@@ -239,6 +290,10 @@ impl EventLoop {
     /// Current window width, in pixels.
     pub fn width(&self) -> u32 {
         self.window.inner_size().width
+    }
+
+    pub fn swapchain_fmt(&self) -> vk::Format {
+        self.swapchain.info().format.format
     }
 
     /// Current window.

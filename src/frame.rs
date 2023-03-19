@@ -1,3 +1,7 @@
+use ash::vk;
+
+use crate::graph::node::AnyImageNode;
+
 use {
     crate::{
         driver::Device,
@@ -19,6 +23,14 @@ pub fn center_cursor(window: &Window) {
 pub fn set_cursor_position(window: &Window, x: u32, y: u32) {
     let position = PhysicalPosition::new(x as i32, y as i32);
     window.set_cursor_position(position).unwrap_or_default();
+}
+
+pub struct SnapshotConfig {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub fmt: vk::Format,
+    pub node: AnyImageNode,
 }
 
 /// A request to render a single frame to the provided render graph.
@@ -53,7 +65,7 @@ pub struct FrameContext<'a> {
     pub window: &'a Window,
 
     /// Should take a snapshot of the current frame.
-    pub should_snapshot: &'a mut bool,
+    pub snapshots: &'a mut Vec<SnapshotConfig>,
 }
 
 impl FrameContext<'_> {
@@ -78,7 +90,14 @@ impl FrameContext<'_> {
     }
 
     /// Taks a snapshot of the current frame.
-    pub fn snapshot(&mut self) {
-        *self.should_snapshot = true;
+    pub fn snapshot(&mut self, name: &str, width: u32, height: u32, fmt: vk::Format, image: impl Into<AnyImageNode>) {
+        let cfg = SnapshotConfig {
+            name: name.to_owned(),
+            width,
+            height,
+            fmt,
+            node: image.into(),
+        };
+        self.snapshots.push(cfg);
     }
 }
