@@ -1,3 +1,10 @@
+use std::fs::File;
+
+use ash::vk;
+use chrono::Local;
+
+use crate::driver::buffer::{BufferInfo, Buffer};
+
 use {
     super::{
         display::{Display, DisplayError},
@@ -9,7 +16,6 @@ use {
     log::{debug, info, trace, warn},
     std::{
         fmt::{Debug, Formatter},
-        mem::take,
         sync::Arc,
         time::{Duration, Instant},
     },
@@ -41,6 +47,7 @@ pub struct EventLoop {
     display: Display,
     event_loop: winit::event_loop::EventLoop<()>,
     swapchain: Swapchain,
+    nsnapshot: u32,
 
     /// Provides access to the current operating system window.
     pub window: Window,
@@ -155,18 +162,50 @@ impl EventLoop {
             let width = swapchain_image.info.width;
             let mut render_graph = RenderGraph::new();
             let swapchain_image = render_graph.bind_node(swapchain_image);
+            let mut should_snapshot = false;
 
-            frame_fn(FrameContext {
+            let frame_context = FrameContext {
                 device: &self.device,
                 dt: dt_filtered,
                 height,
                 render_graph: &mut render_graph,
-                events: take(&mut events).as_slice(),
+                events: events.as_slice(),
                 swapchain_image,
                 width,
                 window: &self.window,
                 will_exit: &mut will_exit,
-            });
+                should_snapshot: &mut should_snapshot,
+            };
+
+            frame_fn(frame_context);
+
+            let read_back_buffer = {
+                if should_snapshot && self.nsnapshot < 100 {
+                    self.nsnapshot += 1;
+
+                    let read_back_buffer = {
+                        let swapchain_info = self.swapchain.info();
+                        let pixel_size = match swapchain_info.format.format {
+                            vk::Format::R8G8B8A8_UNORM => 4,
+                            vk::Format::B8G8R8A8_UNORM => 4,
+                            _ => unimplemented!(),
+                        };
+                        let size = swapchain_info.width as u64 * swapchain_info.height as u64 * pixel_size;
+                        let info = BufferInfo::new_mappable(size, vk::BufferUsageFlags::TRANSFER_DST);
+                        Arc::new(Buffer::create(&self.device, info)?)
+                    };
+    
+                    let node = render_graph.bind_node(&read_back_buffer);
+                    render_graph.copy_image_to_buffer(swapchain_image, node);
+    
+                    Some(read_back_buffer)
+                } else {
+                    if self.nsnapshot >= 100 {
+                        warn!("Reached maximum number of snapshots (100); ignoring further requests.");
+                    }
+                    None
+                }
+            };
 
             let elapsed = Instant::now() - now;
 
@@ -178,6 +217,18 @@ impl EventLoop {
 
             let swapchain_image = self.display.resolve_image(render_graph, swapchain_image)?;
             self.swapchain.present_image(swapchain_image, 0);
+
+            if let Some(read_back_buffer) = read_back_buffer {
+                let buf = Buffer::mapped_slice(&read_back_buffer);
+                // File name at current date time:
+                let file_name = format!("snapshot_{}.png", Local::now().format("%Y-%m-%d_%H-%M-%S"));
+                let mut file = File::create(&file_name).unwrap();
+                let mut encoder = png::Encoder::new(&mut file, width, height);
+                encoder.set_color(png::ColorType::Rgba);
+                encoder.set_depth(png::BitDepth::Eight);
+                let mut writer = encoder.write_header().unwrap();
+                writer.write_image_data(&buf).unwrap();
+            }
         }
 
         self.window.set_visible(false);
@@ -446,6 +497,7 @@ impl EventLoopBuilder {
             display,
             event_loop: self.event_loop,
             swapchain: driver.swapchain,
+            nsnapshot: 0,
             window,
         })
     }

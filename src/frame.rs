@@ -51,6 +51,9 @@ pub struct FrameContext<'a> {
 
     /// A borrow of the operating system window relating to this frame.
     pub window: &'a Window,
+
+    /// Should take a snapshot of the current frame.
+    pub should_snapshot: &'a mut bool,
 }
 
 impl FrameContext<'_> {
@@ -72,5 +75,10 @@ impl FrameContext<'_> {
     /// Sets the mouse cursor at the specified position within the window.
     pub fn set_cursor_position(&self, x: u32, y: u32) {
         set_cursor_position(self.window, x, y);
+    }
+
+    /// Taks a snapshot of the current frame.
+    pub fn snapshot(&mut self) {
+        *self.should_snapshot = true;
     }
 }
