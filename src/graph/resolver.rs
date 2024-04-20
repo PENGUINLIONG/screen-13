@@ -2738,9 +2738,9 @@ impl Resolver {
                 .reset_query_pool(cmd_buf.query_pool, 0, 2);
             cmd_buf
                 .device
-                .cmd_write_timestamp2(
+                .cmd_write_timestamp(
                     **cmd_buf,
-                    vk::PipelineStageFlags2::TOP_OF_PIPE,
+                    vk::PipelineStageFlags::TOP_OF_PIPE,
                     cmd_buf.query_pool,
                     0,
                 );
@@ -2751,9 +2751,9 @@ impl Resolver {
         unsafe {
             cmd_buf
                 .device
-                .cmd_write_timestamp2(
+                .cmd_write_timestamp(
                     **cmd_buf,
-                    vk::PipelineStageFlags2::BOTTOM_OF_PIPE,
+                    vk::PipelineStageFlags::BOTTOM_OF_PIPE,
                     cmd_buf.query_pool,
                     1,
                 );
