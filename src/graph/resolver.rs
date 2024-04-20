@@ -2733,11 +2733,31 @@ impl Resolver {
                         .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
                 )
                 .map_err(|_| DriverError::OutOfMemory)?;
+            cmd_buf
+                .device
+                .reset_query_pool(query_pool, 0, 2)
+                .map_err(|_| DriverError::OutOfMemory)?;
+            cmd_buf
+                .device
+                .cmd_write_timestamp2(
+                    **cmd_buf,
+                    vk::PipelineStageFlags2::TOP_OF_PIPE,
+                    cmd_buf.query_pool,
+                    0,
+                );
         }
 
         self.record_unscheduled_passes(pool, &mut cmd_buf)?;
 
         unsafe {
+            cmd_buf
+                .device
+                .cmd_write_timestamp2(
+                    **cmd_buf,
+                    vk::PipelineStageFlags2::BOTTOM_OF_PIPE,
+                    cmd_buf.query_pool,
+                    1,
+                );
             cmd_buf
                 .device
                 .end_command_buffer(**cmd_buf)

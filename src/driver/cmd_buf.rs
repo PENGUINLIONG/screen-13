@@ -12,6 +12,7 @@ pub struct CommandBuffer {
     pub(crate) device: Arc<Device>,
     droppables: Vec<Box<dyn Debug + Send + 'static>>,
     pub(crate) fence: vk::Fence, // Keeps state because everyone wants this
+    pub(crate) query_pool: vk::QueryPool,
 
     /// Information used to create this object.
     pub info: CommandBufferInfo,
@@ -55,12 +56,14 @@ impl CommandBuffer {
                 })?
         }[0];
         let fence = Device::create_fence(&device, true)?;
+        let query_pool = Device::create_query_pool(&device, vk::QueryType::TIMESTAMP, 2)?;
 
         Ok(Self {
             cmd_buf,
             device,
             droppables: vec![],
             fence,
+            query_pool,
             info,
             pool,
         })
@@ -112,6 +115,29 @@ impl CommandBuffer {
     #[profiling::function]
     pub fn wait_until_executed(&self) -> Result<(), DriverError> {
         Device::wait_for_fence(&self.device, &self.fence)
+    }
+
+    /// Get timestamp query results.
+    #[profiling::function]
+    pub fn get_query_results(&self) -> Result<[u64; 2], DriverError> {
+        let mut results = [0; 2];
+        unsafe {
+            self.device
+                .get_query_pool_results(
+                    self.query_pool,
+                    0,
+                    2,
+                    &mut results,
+                    vk::QueryResultFlags::TYPE_64,
+                )
+                .map_err(|err| {
+                    error!("{}", err);
+
+                    DriverError::InvalidData
+                })?;
+        }
+
+        Ok(results)
     }
 }
 

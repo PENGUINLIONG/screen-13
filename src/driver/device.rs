@@ -255,6 +255,23 @@ impl Device {
         })
     }
 
+    pub(crate) fn create_query_pool(
+        this: &Self,
+        query_type: vk::QueryType,
+        query_count: u32,
+    ) -> Result<vk::QueryPool, DriverError> {
+        let crate_info = vk::QueryPoolCreateInfo::builder()
+            .query_type(query_type)
+            .query_count(query_count);
+        let allocation_callbacks = None;
+
+        unsafe { this.create_query_pool(&crate_info, allocation_callbacks) }.map_err(|err| {
+            warn!("{err}");
+
+            DriverError::OutOfMemory
+        })
+    }
+
     /// Loads and existing `ash` Vulkan device that may have been created by other means.
     #[profiling::function]
     pub fn load(
