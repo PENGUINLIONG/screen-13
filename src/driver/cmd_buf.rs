@@ -128,7 +128,7 @@ impl CommandBuffer {
                     0,
                     2,
                     &mut results,
-                    vk::QueryResultFlags::TYPE_64,
+                    vk::QueryResultFlags::TYPE_64 | vk::QueryResultFlags::WAIT,
                 )
                 .map_err(|err| {
                     error!("{}", err);
