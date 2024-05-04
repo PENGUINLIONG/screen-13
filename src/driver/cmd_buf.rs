@@ -166,6 +166,7 @@ impl Drop for CommandBuffer {
             self.device
                 .free_command_buffers(self.pool, from_ref(&self.cmd_buf));
             self.device.destroy_command_pool(self.pool, None);
+            self.device.destroy_query_pool(self.query_pool, None);
             self.device.destroy_fence(self.fence, None);
         }
     }
