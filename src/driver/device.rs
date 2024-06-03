@@ -131,7 +131,7 @@ impl Device {
         let mut ray_trace_features = vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default();
         let mut features = vk::PhysicalDeviceFeatures2::builder()
             .push_next(&mut features_v1_1)
-            .push_next(&mut features_v1_2)
+            //.push_next(&mut features_v1_2)
             .push_next(&mut acceleration_structure_features)
             .push_next(&mut index_type_uin8_feautres)
             .push_next(&mut ray_query_features)

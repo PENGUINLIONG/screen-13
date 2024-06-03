@@ -13,7 +13,7 @@ use {
     },
 };
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 use std::env::set_var;
 
 unsafe extern "system" fn vulkan_debug_callback(
@@ -101,10 +101,10 @@ impl Instance {
         required_extensions: impl Iterator<Item = &'a CStr>,
     ) -> Result<Self, DriverError> {
         // Required to enable non-uniform descriptor indexing (bindless)
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
         set_var("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1");
 
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", target_os = "ios")))]
         let entry = unsafe {
             Entry::load().map_err(|err| {
                 error!("Vulkan driver not found: {err}");
@@ -113,7 +113,7 @@ impl Instance {
             })?
         };
 
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
         let entry = ash_molten::load();
 
         let required_extensions = required_extensions.collect::<Vec<_>>();
@@ -123,11 +123,11 @@ impl Instance {
             .chain(unsafe { Self::extension_names(debug).into_iter() })
             .collect::<Box<[_]>>();
         let layer_names = Self::layer_names(debug);
-        let layer_names: Vec<*const i8> = layer_names
+        let layer_names: Vec<*const c_char> = layer_names
             .iter()
             .map(|raw_name| raw_name.as_ptr())
             .collect();
-        let app_desc = vk::ApplicationInfo::builder().api_version(vk::API_VERSION_1_2);
+        let app_desc = vk::ApplicationInfo::builder().api_version(vk::API_VERSION_1_1);
         let instance_desc = vk::InstanceCreateInfo::builder()
             .application_info(&app_desc)
             .enabled_layer_names(&layer_names)
@@ -139,7 +139,7 @@ impl Instance {
                     warn!("debug may only be enabled with a valid Vulkan SDK installation");
                 }
 
-                error!("Vulkan driver does not support API v1.2");
+                error!("Vulkan driver does not support API v1.1");
 
                 for layer_name in Self::layer_names(debug) {
                     debug!("Layer: {:?}", layer_name);
@@ -216,7 +216,7 @@ impl Instance {
         &this.entry
     }
 
-    unsafe fn extension_names(debug: bool) -> Vec<*const i8> {
+    unsafe fn extension_names(debug: bool) -> Vec<*const c_char> {
         let mut res = vec![];
 
         if debug {
@@ -268,16 +268,16 @@ impl Instance {
                 res.ok().filter(|physical_device| {
                     let major = vk::api_version_major(physical_device.properties_v1_0.api_version);
                     let minor = vk::api_version_minor(physical_device.properties_v1_0.api_version);
-                    let supports_vulkan_1_2 = major > 1 || (major == 1 && minor >= 2);
+                    let supports_vulkan_1_1 = major > 1 || (major == 1 && minor >= 1);
 
-                    if !supports_vulkan_1_2 {
+                    if !supports_vulkan_1_1 {
                         warn!(
-                            "physical device `{}` does not support Vulkan v1.2",
+                            "physical device `{}` does not support Vulkan v1.1",
                             physical_device.properties_v1_0.device_name
                         );
                     }
 
-                    supports_vulkan_1_2
+                    supports_vulkan_1_1
                 })
             })
             .collect())

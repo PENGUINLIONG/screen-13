@@ -324,15 +324,17 @@ pub mod driver;
 pub mod graph;
 pub mod pool;
 
+#[cfg(winit)]
 mod display;
+#[cfg(winit)]
 mod event_loop;
+#[cfg(winit)]
 mod frame;
 
 /// Things which are used in almost every single _Screen 13_ program.
 pub mod prelude {
     pub use {
         super::{
-            display::{Display, DisplayError, ResolverPool},
             driver::{
                 accel_struct::{
                     AccelerationStructure, AccelerationStructureGeometry,
@@ -372,8 +374,6 @@ pub mod prelude {
                 },
                 AccessType, CommandBuffer, DriverError, Instance,
             },
-            event_loop::{EventLoop, EventLoopBuilder, FullscreenMode},
-            frame::{center_cursor, set_cursor_position, FrameContext},
             graph::{
                 node::{
                     AccelerationStructureLeaseNode, AccelerationStructureNode,
@@ -393,6 +393,15 @@ pub mod prelude {
         },
         ash::vk,
         log::{debug, error, info, logger, trace, warn}, // Everyone wants a log
+    };
+
+    #[cfg(winit)]
+    pub use {
+        super::{
+            display::{Display, DisplayError, ResolverPool},
+            event_loop::{EventLoop, EventLoopBuilder, FullscreenMode},
+            frame::{center_cursor, set_cursor_position, FrameContext},
+        },
         winit::{
             self,
             dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
@@ -407,6 +416,7 @@ pub mod prelude {
     };
 }
 
+#[cfg(winit)]
 pub use self::{
     display::{Display, DisplayError, ResolverPool},
     event_loop::{EventLoop, EventLoopBuilder, FullscreenMode},

@@ -6,7 +6,7 @@ use {
     log::{debug, error},
     std::{
         collections::HashSet,
-        ffi::CStr,
+        ffi::{c_char, CStr},
         fmt::{Debug, Formatter},
         ops::Deref,
     },
@@ -14,7 +14,7 @@ use {
 
 // TODO: There is a bunch of unsafe cstr handling here - does not check for null-termination
 
-fn vk_cstr_to_string_lossy(cstr: &[i8]) -> String {
+fn vk_cstr_to_string_lossy(cstr: &[c_char]) -> String {
     unsafe { CStr::from_ptr(cstr.as_ptr()) }
         .to_string_lossy()
         .to_string()
@@ -235,7 +235,7 @@ impl PhysicalDevice {
         let mut ray_trace_features = vk::PhysicalDeviceRayTracingPipelineFeaturesKHR::default();
         let mut features = vk::PhysicalDeviceFeatures2::builder()
             .push_next(&mut features_v1_1)
-            .push_next(&mut features_v1_2)
+            //.push_next(&mut features_v1_2)
             .push_next(&mut acceleration_structure_features)
             .push_next(&mut index_type_u8_features)
             .push_next(&mut ray_query_features)
@@ -260,7 +260,7 @@ impl PhysicalDevice {
             vk::PhysicalDeviceSamplerFilterMinmaxProperties::default();
         let mut properties = vk::PhysicalDeviceProperties2::builder()
             .push_next(&mut properties_v1_1)
-            .push_next(&mut properties_v1_2)
+            //.push_next(&mut properties_v1_2)
             .push_next(&mut accel_struct_properties)
             .push_next(&mut depth_stencil_resolve_properties)
             .push_next(&mut ray_trace_properties)

@@ -2749,6 +2749,20 @@ impl Resolver {
         self.record_unscheduled_passes(pool, &mut cmd_buf)?;
 
         unsafe {
+            // (penguinliong) This barrier is necessary because MoltenVK doesn't
+            // automatically barrier before the timestamp write, and the
+            // timestamp might be sampled before the last command finishes execution.
+            cmd_buf
+                .device
+                .cmd_pipeline_barrier(
+                    **cmd_buf,
+                    vk::PipelineStageFlags::ALL_COMMANDS,
+                    vk::PipelineStageFlags::ALL_COMMANDS,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[],
+                );
             cmd_buf
                 .device
                 .cmd_write_timestamp(
