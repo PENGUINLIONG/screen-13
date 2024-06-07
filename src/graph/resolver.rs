@@ -2735,7 +2735,7 @@ impl Resolver {
                 .map_err(|_| DriverError::OutOfMemory)?;
             cmd_buf
                 .device
-                .reset_query_pool(cmd_buf.query_pool, 0, 2);
+                .cmd_reset_query_pool(cmd_buf.cmd_buf, cmd_buf.query_pool, 0, 2);
             cmd_buf
                 .device
                 .cmd_write_timestamp(

@@ -8,7 +8,7 @@ use {
 /// Represents a Vulkan command buffer to which some work has been submitted.
 #[derive(Debug)]
 pub struct CommandBuffer {
-    cmd_buf: vk::CommandBuffer,
+    pub(crate) cmd_buf: vk::CommandBuffer,
     pub(crate) device: Arc<Device>,
     droppables: Vec<Box<dyn Debug + Send + 'static>>,
     pub(crate) fence: vk::Fence, // Keeps state because everyone wants this
