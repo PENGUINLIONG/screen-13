@@ -660,6 +660,8 @@ pub enum DriverError {
     ///
     /// Many drivers return this value for generic or unhandled error conditions.
     OutOfMemory,
+
+    InvalidCommandBuffer,
 }
 
 impl Display for DriverError {

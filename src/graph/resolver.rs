@@ -2723,7 +2723,7 @@ impl Resolver {
 
         unsafe {
             Device::wait_for_fence(&cmd_buf.device, &cmd_buf.fence)
-                .map_err(|_| DriverError::OutOfMemory)?;
+                .map_err(|_| DriverError::InvalidCommandBuffer)?;
 
             cmd_buf
                 .device
@@ -2732,7 +2732,7 @@ impl Resolver {
                     &vk::CommandBufferBeginInfo::builder()
                         .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
                 )
-                .map_err(|_| DriverError::OutOfMemory)?;
+                .map_err(|_| DriverError::InvalidCommandBuffer)?;
             cmd_buf
                 .device
                 .cmd_reset_query_pool(cmd_buf.cmd_buf, cmd_buf.query_pool, 0, 2);
@@ -2774,11 +2774,11 @@ impl Resolver {
             cmd_buf
                 .device
                 .end_command_buffer(**cmd_buf)
-                .map_err(|_| DriverError::OutOfMemory)?;
+                .map_err(|_| DriverError::InvalidCommandBuffer)?;
             cmd_buf
                 .device
                 .reset_fences(from_ref(&cmd_buf.fence))
-                .map_err(|_| DriverError::OutOfMemory)?;
+                .map_err(|_| DriverError::InvalidCommandBuffer)?;
             cmd_buf
                 .device
                 .queue_submit(
@@ -2786,7 +2786,7 @@ impl Resolver {
                     from_ref(&vk::SubmitInfo::builder().command_buffers(from_ref(&cmd_buf))),
                     cmd_buf.fence,
                 )
-                .map_err(|_| DriverError::OutOfMemory)?;
+                .map_err(|_| DriverError::InvalidCommandBuffer)?;
         }
 
         // This graph contains references to buffers, images, and other resources which must be kept
