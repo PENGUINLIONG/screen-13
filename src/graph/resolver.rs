@@ -2733,17 +2733,19 @@ impl Resolver {
                         .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
                 )
                 .map_err(|_| DriverError::InvalidCommandBuffer)?;
-            cmd_buf
-                .device
-                .cmd_reset_query_pool(cmd_buf.cmd_buf, cmd_buf.query_pool, 0, 2);
-            cmd_buf
-                .device
-                .cmd_write_timestamp(
-                    **cmd_buf,
-                    vk::PipelineStageFlags::TOP_OF_PIPE,
-                    cmd_buf.query_pool,
-                    0,
-                );
+            if cmd_buf.query_pool != vk::QueryPool::null() {
+                cmd_buf
+                    .device
+                    .cmd_reset_query_pool(cmd_buf.cmd_buf, cmd_buf.query_pool, 0, 2);
+                cmd_buf
+                    .device
+                    .cmd_write_timestamp(
+                        **cmd_buf,
+                        vk::PipelineStageFlags::TOP_OF_PIPE,
+                        cmd_buf.query_pool,
+                        0,
+                    );
+            }
         }
 
         self.record_unscheduled_passes(pool, &mut cmd_buf)?;
@@ -2763,14 +2765,16 @@ impl Resolver {
                     &[],
                     &[],
                 );
-            cmd_buf
-                .device
-                .cmd_write_timestamp(
-                    **cmd_buf,
-                    vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-                    cmd_buf.query_pool,
-                    1,
-                );
+            if cmd_buf.query_pool != vk::QueryPool::null() {
+                cmd_buf
+                    .device
+                    .cmd_write_timestamp(
+                        **cmd_buf,
+                        vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                        cmd_buf.query_pool,
+                        1,
+                    );
+                }
             cmd_buf
                 .device
                 .end_command_buffer(**cmd_buf)

@@ -56,7 +56,11 @@ impl CommandBuffer {
                 })?
         }[0];
         let fence = Device::create_fence(&device, true)?;
-        let query_pool = Device::create_query_pool(&device, vk::QueryType::TIMESTAMP, 2)?;
+        let query_pool = if device.physical_device.properties_v1_0.limits.timestamp_compute_and_graphics {
+            Device::create_query_pool(&device, vk::QueryType::TIMESTAMP, 2)?
+        } else {
+            vk::QueryPool::null()
+        };
 
         Ok(Self {
             cmd_buf,
@@ -121,6 +125,9 @@ impl CommandBuffer {
     #[profiling::function]
     pub fn get_query_results(&self) -> Result<[u64; 2], DriverError> {
         let mut results = [0; 2];
+        if self.query_pool == vk::QueryPool::null() {
+            return Err(DriverError::InvalidData);
+        }
         unsafe {
             self.device
                 .get_query_pool_results(
